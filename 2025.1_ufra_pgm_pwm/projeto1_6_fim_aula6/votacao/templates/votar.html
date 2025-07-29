@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+
+{% block title_content %}
+    VOTAR
+{% endblock %}
+
+{% block body %}
+    <h1>{{pergunta.texto}}</h1>
+    <form action="{% url 'votar' pergunta.id %}" method="post">
+        {% csrf_token %}
+        {% for opcao in opcoes %}
+            <h3><input type="radio" name="opcao" value="{{opcao.id}}"> {{opcao.texto}}</h3>
+        {% endfor %}
+        <button type="submit">Votar</button>
+    </form>
+{% endblock %}
+

@@ -1,0 +1,19 @@
+.messages {
+    margin: 20px auto;
+    max-width: 500px;
+    padding: 0;
+}
+
+.message {
+    background: linear-gradient(90deg, #4caf50 0%, #81c784 100%);
+    color: #fff;
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 12px;
+    font-size: 1.1em;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}

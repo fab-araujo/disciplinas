@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block title_content %}
+    INDEX
+{% endblock %}
+
+{% block body %}
+    <h1>Questões cadastradas</h1>
+    {% for pergunta in perguntas_db %}
+        <h3>{{ pergunta.texto }}</h3>
+        <p>Data de publicação: {{ pergunta.data_pub|date:'d/m/Y H:i:s' }}</p>
+        <p>
+            <a href="{% url 'detalhe' pergunta.id %}">Ver detalhes</a>
+        </p>
+        <p>
+            <a href="{% url 'votar' pergunta.id %}">Votar</a>
+        </p>
+        <p>
+            <a href="{% url 'resultado' pergunta.id %}">Ver resultados</a>
+        </p>
+    {% empty %}
+        <li>Nenhuma questão cadastrada.</li>
+    {% endfor %}
+{% endblock %}

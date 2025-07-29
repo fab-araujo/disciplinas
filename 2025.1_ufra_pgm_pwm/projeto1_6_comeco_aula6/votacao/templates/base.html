@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>{% block title_content %}{% endblock %}</title>
+</head>
+
+<body>
+    <ul>
+        <li>
+            <a href="{% url 'index' %}">INDEX</a>
+        </li>
+        <li>
+            <a href="{% url 'detalhe' 21 %}">DETALHE</a>
+        </li>
+        <li>
+            <a href="{% url 'votar' 21 %}">VOTAR</a>
+        </li>
+        <li>
+            <a href="{% url 'resultado' 21 %}">RESULTADO</a>
+        </li>
+        <li>
+            <a href="{% url 'sobre' %}">SOBRE</a>
+        </li>
+    </ul>
+    
+    {% block body %}
+    {% endblock %}
+</body>
+
+</html>

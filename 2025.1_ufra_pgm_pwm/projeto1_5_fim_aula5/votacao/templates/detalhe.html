@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title_content %}
+    {{pergunta.texto}} - Detalhe
+{% endblock %}
+
+{% block body %}
+    <h1>{{pergunta.texto}}</h1>
+    {% for opcao in opcoes %}
+        <h3>{{opcao.texto}}</h3>
+    {% empty %}
+        <p>Nenhuma opção cadastrada para esta pergunta.</p>
+    {% endfor %}
+{% endblock %}

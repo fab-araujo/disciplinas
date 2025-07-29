@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="UTF-8" />
+    <title>INDEX</title>
+</head>
+
+<body>
+    <ul>
+        <li>
+            <a href="{% url 'index' %}">INDEX</a>
+        </li>
+        <li>
+            <a href="{% url 'detalhe' 21 %}">DETALHE</a>
+        </li>
+        <li>
+            <a href="{% url 'votar' 21 %}">VOTAR</a>
+        </li>
+        <li>
+            <a href="{% url 'resultado' 21 %}">RESULTADO</a>
+        </li>
+    </ul>
+    <h1>
+        Olá, mundo! Página INDEX.
+    </h1>
+</body>
+
+</html>
