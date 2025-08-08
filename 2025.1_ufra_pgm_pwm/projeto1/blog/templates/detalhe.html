@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% load static %}
+
+{% block body %}
+<h4 class="mb-5"><strong>{{post_template.titulo}}</strong></h4>
+
+<div class="row">
+    <p><img src="{{ post_template.imagem.url }}" class="img-fluid" /></p>
+    <p>
+        <p> Publicada em: {{ post_template.pub_date|date:'d/m/Y H:i:s' }} </p>
+    </p>
+    <div class="col-lg-12">
+        {{post_template.texto}}
+        <h3>Comentários</h3>
+        {% for comentario in comentarios_template %}
+        <p>
+            {{ comentario.texto }}
+        </p>
+        {% endfor %}
+        <h3> Adicionar comentário</h3>
+        <form method="post">
+        {% csrf_token %}
+        <div class="form-check">
+            <label for="comentario" class="form-label">Digite seu comentário</label>
+            <input type="text" class="form-control" id="comentario" name="comentario">
+        </div>
+        <button type="submit" class="btn btn-primary">Comentar</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
