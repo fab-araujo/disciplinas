@@ -1,0 +1,15 @@
+{% extends 'blog/base.html' %}
+{% load static %}
+{% block content %}
+  <h1>Postagens</h1>
+  {% for post in posts %}
+    <div>
+      {% if post.imagem %}
+        <img src="{{ post.imagem.url }}" width="200">
+      {% endif %}
+      <h2>{{ post.titulo }}</h2>
+      <p>{{ post.texto|truncatewords:30 }}</p>
+      <a href="{% url 'detalhe_postagem' post.id %}">Ver detalhes</a>
+    </div>
+  {% endfor %}
+{% endblock %}

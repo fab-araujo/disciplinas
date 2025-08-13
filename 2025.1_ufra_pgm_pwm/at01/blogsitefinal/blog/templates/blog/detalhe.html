@@ -1,0 +1,23 @@
+{% extends 'blog/base.html' %}
+{% block content %}
+  <h1>{{ post.titulo }}</h1>
+  {% if post.imagem %}
+    <img src="{{ post.imagem.url }}" width="400">
+  {% endif %}
+  <p>{{ post.texto }}</p>
+
+  <h3>Comentários:</h3>
+  {% for comentario in comentarios %}
+    <p>{{ comentario.texto }} - {{ comentario.com_date }}</p>
+  {% empty %}
+    <p>Sem comentários ainda.</p>
+  {% endfor %}
+
+  <h3>Adicionar Comentário</h3>
+  <form method="post">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Enviar</button>
+  </form>
+{% endblock %}
+
