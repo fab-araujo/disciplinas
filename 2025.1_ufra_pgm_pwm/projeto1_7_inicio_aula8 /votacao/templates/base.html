@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+{% load static %}
+
+<head>
+    <meta charset="UTF-8" />
+    <title>{% block title_content %}{% endblock %}</title>
+    <link rel="stylesheet" href="{% static 'messages.css' %}">
+</head>
+
+<body>
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="message"><b>{{message}}</b></div>
+            {% endfor %}
+        </div>
+    {% endif %}
+    <ul>
+        <li>
+            <a href="{% url 'index' %}">INDEX</a>
+        </li>
+        <li>
+            <a href="{% url 'detalhe' 21 %}">DETALHE</a>
+        </li>
+        <li>
+            <a href="{% url 'votar' 21 %}">VOTAR</a>
+        </li>
+        <li>
+            <a href="{% url 'resultado' 21 %}">RESULTADO</a>
+        </li>
+        <li>
+            <a href="{% url 'sobre' %}">SOBRE</a>
+        </li>
+    </ul>
+    
+    {% block body %}
+    {% endblock %}
+</body>
+
+</html>
