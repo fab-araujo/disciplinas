@@ -1,0 +1,115 @@
+{
+  "items": [
+    {
+      "id": "item_4759",
+      "name": "Anais de Programa\u00e7ao",
+      "category": "magazine",
+      "status": "borrowed",
+      "edition": "2025",
+      "type": "magazine"
+    },
+    {
+      "id": "item_6350",
+      "name": "POO",
+      "category": "book",
+      "status": "borrowed",
+      "author": "Presman",
+      "isbn": "123123",
+      "type": "book"
+    }
+  ],
+  "users": [
+    {
+      "id": "user_6807",
+      "name": "Fabricio Araujoweqwewqe",
+      "user_type": "professor",
+      "borrowed_items": [
+        "item_6350",
+        "item_4759"
+      ],
+      "status": "active"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "loan_8185",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:07:52.305154",
+      "status": "completed",
+      "type": "Loan"
+    },
+    {
+      "id": "return_8581",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:07:52.305156",
+      "status": "completed",
+      "type": "Return"
+    },
+    {
+      "id": "loan_4806",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:08:54.821042",
+      "status": "completed",
+      "type": "Loan"
+    },
+    {
+      "id": "return_7523",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:09:03.596853",
+      "status": "completed",
+      "type": "Return"
+    },
+    {
+      "id": "loan_9373",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:09:10.171037",
+      "status": "completed",
+      "type": "Loan"
+    },
+    {
+      "id": "return_2171",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:09:16.368583",
+      "status": "completed",
+      "type": "Return"
+    },
+    {
+      "id": "loan_9018",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:09:28.033812",
+      "status": "completed",
+      "type": "Loan"
+    },
+    {
+      "id": "return_4862",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:10:18.148292",
+      "status": "completed",
+      "type": "Return"
+    },
+    {
+      "id": "loan_2116",
+      "user_id": "user_6807",
+      "item_id": "item_6350",
+      "date": "2025-08-27T21:10:28.122782",
+      "status": "completed",
+      "type": "Loan"
+    },
+    {
+      "id": "loan_2335",
+      "user_id": "user_6807",
+      "item_id": "item_4759",
+      "date": "2025-08-27T21:10:30.698109",
+      "status": "completed",
+      "type": "Loan"
+    }
+  ]
+}
