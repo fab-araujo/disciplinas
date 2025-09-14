@@ -1,0 +1,1263 @@
+import pygame
+from ui.ui_nav import draw_exit_button
+from ui.ui_charts import draw_bar_chart
+import os
+import json
+import csv
+import time
+import math
+
+# ---------- Cores/Estilos ----------
+BTN_BG = (255, 255, 255)
+BTN_BORDER = (210, 220, 235)
+BTN_TEXT = (50, 60, 80)
+BG = (240, 240, 245)
+INK = (40, 40, 60)
+MUTED = (110, 120, 140)
+
+class Button:
+    def __init__(self, rect, label, on_click):
+        self.rect = pygame.Rect(rect)
+        self.label = label
+        self.on_click = on_click
+        self.hover = False
+
+    def draw(self, screen, font):
+        pygame.draw.rect(screen, BTN_BG, self.rect, border_radius=12)
+        pygame.draw.rect(screen, BTN_BORDER, self.rect, width=2, border_radius=12)
+        text = font.render(self.label, True, BTN_TEXT)
+        screen.blit(text, (self.rect.centerx - text.get_width() // 2, self.rect.centery - text.get_height() // 2))
+        if self.hover:
+            s = pygame.Surface(self.rect.size, pygame.SRCALPHA)
+            s.fill((80, 120, 200, 25))
+            screen.blit(s, self.rect.topleft)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEMOTION:
+            self.hover = self.rect.collidepoint(event.pos)
+        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            if self.rect.collidepoint(event.pos):
+                self.on_click()
+
+class InputField:
+    def __init__(self, x, y, w, h, placeholder="", text=""):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.placeholder = placeholder
+        self.text = text
+        self.focus = False
+
+    def draw(self, screen, font):
+        pygame.draw.rect(screen, (255, 255, 255), self.rect, border_radius=10)
+        pygame.draw.rect(screen, (200, 210, 225), self.rect, width=2, border_radius=10)
+        shown = self.text if (self.text or self.focus) else self.placeholder
+        color = (60, 70, 90) if self.text else (140, 150, 165)
+        surf = font.render(shown, True, color)
+        screen.blit(surf, (self.rect.x + 12, self.rect.y + (self.rect.height - surf.get_height()) // 2))
+        if self.focus and pygame.time.get_ticks() % 800 < 400:
+            cx = self.rect.x + 12 + surf.get_width() + 2
+            pygame.draw.line(screen, (60, 70, 90), (cx, self.rect.y + 8), (cx, self.rect.y + self.rect.height - 8), 2)
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            self.focus = self.rect.collidepoint(event.pos)
+        if self.focus and event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            elif event.key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_TAB):
+                pass
+            else:
+                if event.unicode and len(self.text) < 64 and event.unicode.isprintable():
+                    self.text += event.unicode
+
+class BiblioApp:
+    def __init__(self):
+        pygame.init()
+        self.screen = pygame.display.set_mode((1024, 768))
+        pygame.display.set_caption("BiblioManager")
+        self.clock = pygame.time.Clock()
+        self.running = True
+
+        # Estado geral
+        self.current_screen = "dashboard"  # dashboard | shelf | add_item | manage_users | loans | reports
+        self.scroll_offset = 0
+
+        # Dados
+        self.data = self.load_data()
+
+        # Fontes
+        self.font_title = pygame.font.SysFont("Arial", 36, bold=True)
+        self.font_sub = pygame.font.SysFont("Arial", 24, bold=False)
+        self.font = pygame.font.SysFont("Arial", 20, bold=False)
+
+        # Navbar
+        self._build_navbar()
+
+        # ----- Estado: Adicionar Item -----
+        self.add_type = "Book"
+        self.add_inputs = {}
+        self.add_message = ""
+
+        # ----- Estado: Gerenciar Usuários -----
+        self.user_type = "Student"
+        self.user_inputs = {}
+        self.user_message = ""
+        self.user_selected_index = -1
+        self.user_edit_mode = False
+
+        # ----- Estado: Empréstimos/Devoluções/Reservas -----
+        self.loan_selected_user = -1
+        self.loan_selected_item = -1
+        self.loan_message = ""
+
+        # ----- Relatórios -----
+        self.rep_filter_type = "All"     # All | Book | Magazine | DVD
+        self.rep_filter_status = "All"   # All | available | borrowed
+        self.rep_mode = "items"          # items | by_user
+        self.rep_message = ""
+
+        # ----- CRUD Itens (Prateleira) -----
+        self.item_selected_index = -1
+        self.item_edit_mode = False
+        self.item_inputs = {}
+        self.item_message = ""
+
+    # ---------- Persistência ----------
+    def load_data(self):
+        data_path = os.path.join("data", "library_data.json")
+        if os.path.exists(data_path):
+            with open(data_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        return {"items": [], "users": [], "transactions": []}
+
+    def save_data(self, data):
+        os.makedirs("data", exist_ok=True)
+        data_path = os.path.join("data", "library_data.json")
+        with open(data_path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
+
+    # ---------- Navbar ----------
+    def _build_navbar(self):
+        pad = 12
+        x = 20
+        y = 18
+        w = 170
+        h = 44
+        self.buttons = [
+            Button((x, y, w, h), "Dashboard", lambda: self._go("dashboard")),
+            Button((x + (w + pad), y, w, h), "Prateleira", lambda: self._go("shelf")),
+            Button((x + 2 * (w + pad), y, w, h), "Adicionar Item", lambda: self._go("add_item")),
+            Button((x + 3 * (w + pad), y, w, h), "Gerenciar Usuários", lambda: self._go("manage_users")),
+            Button((x + 4 * (w + pad), y, w, h), "Empréstimos", lambda: self._go("loans")),
+            Button((x + 5 * (w + pad), y, w, h), "Relatórios", lambda: self._go("reports")),
+        ]
+
+    def _go(self, screen_name):
+        self.current_screen = screen_name
+        self.scroll_offset = 0
+
+    # ---------- Dashboard helpers ----------
+    def _count_items(self):
+        items = self.data.get("items", [])
+        total = len(items)
+        books = sum(1 for it in items if it.get("type") == "Book")
+        magazines = sum(1 for it in items if it.get("type") == "Magazine")
+        dvds = sum(1 for it in items if it.get("type") == "DVD")
+        borrowed = sum(1 for it in items if it.get("status") == "borrowed")
+        available = total - borrowed
+        return {"total": total, "books": books, "magazines": magazines, "dvds": dvds, "available": available, "borrowed": borrowed}
+
+    def _count_users(self):
+        users = self.data.get("users", [])
+        total = len(users)
+        students = sum(1 for u in users if u.get("type") == "Student")
+        professors = sum(1 for u in users if u.get("type") == "Professor")
+        visitors = sum(1 for u in users if u.get("type") == "Visitor")
+        return {"total": total, "students": students, "professors": professors, "visitors": visitors}
+
+    # ---------- Adicionar Item ----------
+    def _add_build_fields(self):
+        base_x, base_y = 60, 200
+        w, h = 420, 44
+        self.add_inputs = {
+            "name": InputField(base_x, base_y, w, h, placeholder="Nome do item")
+        }
+        if self.add_type == "Book":
+            self.add_inputs["author"] = InputField(base_x, base_y + 60, w, h, placeholder="Autor")
+            self.add_inputs["isbn"] = InputField(base_x, base_y + 120, w, h, placeholder="ISBN")
+        elif self.add_type == "Magazine":
+            self.add_inputs["edition"] = InputField(base_x, base_y + 60, w, h, placeholder="Edição (ex.: Agosto 2025)")
+        elif self.add_type == "DVD":
+            self.add_inputs["duration"] = InputField(base_x, base_y + 60, w, h, placeholder="Duração (ex.: 120min)")
+
+    def _add_validate(self):
+        name = self.add_inputs.get("name").text.strip()
+        if not name:
+            return False, "Informe o nome do item."
+        if self.add_type == "Book":
+            author = self.add_inputs.get("author").text.strip()
+            isbn = self.add_inputs.get("isbn").text.strip()
+            if not author or not isbn:
+                return False, "Livro exige Autor e ISBN."
+        elif self.add_type == "Magazine":
+            edition = self.add_inputs.get("edition").text.strip()
+            if not edition:
+                return False, "Revista exige a Edição."
+        elif self.add_type == "DVD":
+            duration = self.add_inputs.get("duration").text.strip()
+            if not duration:
+                return False, "DVD exige Duração."
+        return True, ""
+
+    def _add_save(self):
+        ok, msg = self._add_validate()
+        if not ok:
+            self.add_message = msg
+            return False
+        item = {"type": self.add_type, "name": self.add_inputs["name"].text.strip(), "status": "available"}
+        if self.add_type == "Book":
+            item["author"] = self.add_inputs["author"].text.strip()
+            item["isbn"] = self.add_inputs["isbn"].text.strip()
+        elif self.add_type == "Magazine":
+            item["edition"] = self.add_inputs["edition"].text.strip()
+        elif self.add_type == "DVD":
+            item["duration"] = self.add_inputs["duration"].text.strip()
+        self.data.setdefault("items", []).append(item)
+        self.save_data(self.data)
+        self.add_message = "Item salvo com sucesso!"
+        for f in self.add_inputs.values():
+            f.text = ""
+        return True
+
+    def render_add_item(self):
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render("Adicionar Item", True, INK)
+        self.screen.blit(title, (40, 100))
+
+        types = ["Book", "Magazine", "DVD"]
+        x = 40
+        for t in types:
+            rect = pygame.Rect(x, 150, 140, 36)
+            is_sel = (self.add_type == t)
+            bg = (225, 235, 255) if is_sel else (255, 255, 255)
+            pygame.draw.rect(self.screen, bg, rect, border_radius=10)
+            pygame.draw.rect(self.screen, (80, 120, 200) if is_sel else BTN_BORDER, rect, width=2, border_radius=10)
+            label = self.font.render(t, True, (40, 60, 120) if is_sel else BTN_TEXT)
+            self.screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+            x += 160
+
+        if not self.add_inputs:
+            self._add_build_fields()
+        for fld in self.add_inputs.values():
+            fld.draw(self.screen, self.font)
+
+        save_rect = pygame.Rect(500, 200, 180, 44)
+        pygame.draw.rect(self.screen, (70, 190, 120), save_rect, border_radius=10)
+        self.screen.blit(self.font.render("Salvar", True, (255, 255, 255)), (save_rect.centerx - 30, save_rect.centery - 12))
+
+        if self.add_message:
+            color = (70, 140, 90) if "sucesso" in self.add_message.lower() else (200, 90, 90)
+            self.screen.blit(self.font.render(self.add_message, True, color), (500, 260))
+
+        tip = self.font.render("Dica: clique nos campos para digitar. Use o botão Salvar.", True, MUTED)
+        self.screen.blit(tip, (40, 740))
+
+    def handle_add_item_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            x = 40
+            types = ["Book", "Magazine", "DVD"]
+            for t in types:
+                rect = pygame.Rect(x, 150, 140, 36)
+                if rect.collidepoint(event.pos):
+                    if self.add_type != t:
+                        self.add_type = t
+                        self._add_build_fields()
+                    return
+                x += 160
+            save_rect = pygame.Rect(500, 200, 180, 44)
+            if save_rect.collidepoint(event.pos):
+                self._add_save()
+                return
+        for fld in self.add_inputs.values():
+            fld.handle_event(event)
+
+    # ---------- Usuários (CRUD + edição) ----------
+    def _user_build_fields(self):
+        base_x, base_y = 60, 200
+        w, h = 420, 44
+        self.user_inputs = {
+            "name": InputField(base_x, base_y, w, h, placeholder="Nome do usuário")
+        }
+
+    def _user_limit_default(self, typ):
+        return 3 if typ == "Student" else (5 if typ == "Professor" else 1)
+
+    
+    def _user_normalize_limits(self):
+        # Garante limites 3/5/1 conforme perfil
+        users = self.data.get("users", [])
+        for u in users:
+            typ = u.get("type", "Student")
+            cap = self._user_limit_default(typ)
+            u["limit"] = cap
+        self.save_data(self.data)
+    def _user_validate(self):
+        name = self.user_inputs.get("name").text.strip()
+        if not name:
+            return False, "Informe o nome do usuário."
+        return True, ""
+
+    def _user_save(self):
+        ok, msg = self._user_validate()
+        if not ok:
+            self.user_message = msg
+            return False
+        name = self.user_inputs["name"].text.strip()
+        user = {"type": self.user_type, "name": name, "limit": self._user_limit_default(self.user_type)}
+        # força limite por perfil
+        user["limit"] = self._user_limit_default(self.user_type)
+        self.data.setdefault("users", []).append(user)
+        self.save_data(self.data)
+        self.user_message = "Usuário salvo com sucesso!"
+        for f in self.user_inputs.values():
+            f.text = ""
+        return True
+
+    def _user_delete(self, index):
+        users = self.data.get("users", [])
+        if 0 <= index < len(users):
+            users.pop(index)
+            self.save_data(self.data)
+            self.user_message = "Usuário removido."
+            self.user_selected_index = -1
+
+    def _user_start_edit(self):
+        users = self.data.get("users", [])
+        if 0 <= self.user_selected_index < len(users):
+            self.user_edit_mode = True
+            u = users[self.user_selected_index]
+            if not self.user_inputs:
+                self._user_build_fields()
+            self.user_inputs["name"].text = u.get("name", "")
+            self.user_type = u.get("type", "Student")
+            self.user_message = "Editando usuário selecionado..."
+
+    def _user_apply_edit(self):
+        users = self.data.get("users", [])
+        if not (0 <= self.user_selected_index < len(users)):
+            self.user_message = "Selecione um usuário para editar."
+            return False
+        ok, msg = self._user_validate()
+        if not ok:
+            self.user_message = msg
+            return False
+        u = users[self.user_selected_index]
+        u["name"] = self.user_inputs["name"].text.strip()
+        u["type"] = self.user_type
+        u["limit"] = self._user_limit_default(self.user_type)
+        self.save_data(self.data)
+        self.user_message = "Usuário atualizado."
+        self.user_edit_mode = False
+        return True
+
+    def render_manage_users(self):
+        # Indicador de limite fixo por perfil (somente display)
+        try:
+            limit_val = self._user_limit_default(self.user_type)
+            info_lbl = self.font_md.render(f"Limite (fixo): {limit_val}", True, (80,120,90))
+            self.screen.blit(info_lbl, (680, 140))
+        except Exception:
+            pass
+
+        self._user_normalize_limits()
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render("Gerenciar Usuários", True, INK)
+        self.screen.blit(title, (40, 100))
+
+        types = ["Student", "Professor", "Visitor"]
+        x = 40
+        for t in types:
+            rect = pygame.Rect(x, 150, 160, 36)
+            is_sel = (self.user_type == t)
+            bg = (225, 235, 255) if is_sel else (255, 255, 255)
+            pygame.draw.rect(self.screen, bg, rect, border_radius=10)
+            pygame.draw.rect(self.screen, (80, 120, 200) if is_sel else BTN_BORDER, rect, width=2, border_radius=10)
+            label = self.font.render(t, True, (40, 60, 120) if is_sel else BTN_TEXT)
+            self.screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+            x += 180
+
+        if not self.user_inputs:
+            self._user_build_fields()
+        for fld in self.user_inputs.values():
+            fld.draw(self.screen, self.font)
+
+        save_rect = pygame.Rect(500, 200, 180, 44)
+        pygame.draw.rect(self.screen, (70, 190, 120), save_rect, border_radius=10)
+        self.screen.blit(self.font.render("Salvar", True, (255, 255, 255)), (save_rect.centerx - 30, save_rect.centery - 12))
+
+        edit_rect = pygame.Rect(700, 200, 180, 44)
+        cancel_rect = pygame.Rect(700, 250, 180, 44)
+        action_label = "Salvar Edição" if self.user_edit_mode else "Editar Selecionado"
+        action_color = (60, 130, 200) if self.user_edit_mode else (100, 120, 200)
+        pygame.draw.rect(self.screen, action_color, edit_rect, border_radius=10)
+        self.screen.blit(self.font.render(action_label, True, (255, 255, 255)), (edit_rect.centerx - 70, edit_rect.centery - 12))
+        pygame.draw.rect(self.screen, (180, 90, 90), cancel_rect, border_radius=10)
+        self.screen.blit(self.font.render("Cancelar Edição", True, (255, 255, 255)), (cancel_rect.centerx - 70, cancel_rect.centery - 12))
+
+        users = self.data.get("users", [])
+        pygame.draw.rect(self.screen, (255, 255, 255), (40, 270, 940, 450), border_radius=14)
+        pygame.draw.rect(self.screen, BTN_BORDER, (40, 270, 940, 450), width=2, border_radius=14)
+        header = self.font_sub.render("Usuários cadastrados (clique para selecionar/remover)", True, BTN_TEXT)
+        self.screen.blit(header, (60, 288))
+
+        y = 330
+        for i, u in enumerate(users[:12]):
+            line = f"{i + 1:02d}. {u.get('name')} — {u.get('type')} — limite: {u.get('limit')}"
+            color = (40, 80, 140) if i == self.user_selected_index else (70, 80, 100)
+            self.screen.blit(self.font.render(line, True, color), (60, y))
+            y += 28
+
+        if self.user_message:
+            color = (70, 140, 90) if any(w in self.user_message.lower() for w in ["sucesso", "removido", "atualizado"]) else (200, 90, 90)
+            self.screen.blit(self.font.render(self.user_message, True, color), (500, 260))
+
+        tip = self.font.render("Clique num usuário para selecionar. Delete remove o selecionado.", True, MUTED)
+        self.screen.blit(tip, (40, 740))
+
+    def handle_manage_users_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            x = 40
+            types = ["Student", "Professor", "Visitor"]
+            for t in types:
+                rect = pygame.Rect(x, 150, 160, 36)
+                if rect.collidepoint(event.pos):
+                    self.user_type = t
+                    return
+                x += 180
+
+            save_rect = pygame.Rect(500, 200, 180, 44)
+            if save_rect.collidepoint(event.pos):
+                self._user_save()
+                return
+
+            edit_rect = pygame.Rect(700, 200, 180, 44)
+            cancel_rect = pygame.Rect(700, 250, 180, 44)
+            if edit_rect.collidepoint(event.pos):
+                if self.user_edit_mode:
+                    self._user_apply_edit()
+                else:
+                    self._user_start_edit()
+                return
+            if cancel_rect.collidepoint(event.pos):
+                self.user_edit_mode = False
+                self.user_message = "Edição cancelada."
+                return
+
+            users = self.data.get("users", [])
+            y = 330
+            for i in range(min(len(users), 12)):
+                row_rect = pygame.Rect(50, y - 2, 900, 26)
+                if row_rect.collidepoint(event.pos):
+                    self.user_selected_index = i
+                    return
+                y += 28
+
+        for fld in self.user_inputs.values():
+            fld.handle_event(event)
+
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_DELETE:
+            if self.user_selected_index >= 0:
+                self._user_delete(self.user_selected_index)
+
+    # ---------- Empréstimos / Devoluções / Reservas ----------
+    def _loan_lists(self):
+        return self.data.get("users", []), self.data.get("items", [])
+
+    def _loan_can_borrow(self, user):
+        return user.get("limit", 0) > 0
+
+    def _loan_do_borrow(self):
+        users, items = self._loan_lists()
+        if not (0 <= self.loan_selected_user < len(users)):
+            self.loan_message = "Selecione um usuário."
+            return False
+        if not (0 <= self.loan_selected_item < len(items)):
+            self.loan_message = "Selecione um item."
+            return False
+        user = users[self.loan_selected_user]
+        item = items[self.loan_selected_item]
+        if item.get("status", "available") != "available":
+            self.loan_message = "Item indisponível para empréstimo."
+            return False
+        if not self._loan_can_borrow(user):
+            self.loan_message = "Usuário atingiu o limite de empréstimos."
+            return False
+        item["status"] = "borrowed"
+        item["borrower"] = user["name"]
+        now_ts = int(time.time())
+        item["loan_ts"] = now_ts
+        item["due_ts"] = now_ts + 7 * 24 * 3600
+        user["limit"] = max(0, user.get("limit", 0) - 1)
+        self.data.setdefault("transactions", []).insert(0, {"type": "Loan", "user": user["name"], "item": item["name"]})
+        self.save_data(self.data)
+        self.loan_message = "Empréstimo realizado com sucesso."
+        return True
+
+    def _loan_do_return(self):
+        users, items = self._loan_lists()
+        if not (0 <= self.loan_selected_user < len(users)):
+            self.loan_message = "Selecione um usuário."
+            return False
+        if not (0 <= self.loan_selected_item < len(items)):
+            self.loan_message = "Selecione um item."
+            return False
+        user = users[self.loan_selected_user]
+        item = items[self.loan_selected_item]
+        if item.get("status") != "borrowed":
+            self.loan_message = "Este item não está marcado como emprestado."
+            return False
+        if item.get("borrower") and item.get("borrower") != user.get("name"):
+            self.loan_message = "Somente quem pegou o item pode devolvê-lo."
+            return False
+        now_ts = int(time.time())
+        overdue_days = 0
+        if item.get("due_ts"):
+            diff = now_ts - int(item.get("due_ts", now_ts))
+            if diff > 0:
+                overdue_days = math.ceil(diff / (24 * 3600))
+        item["status"] = "available"
+        item["borrower"] = None
+        item["return_ts"] = now_ts
+        item["loan_ts"] = None
+        item["due_ts"] = None
+        user["limit"] = user.get("limit", 0) + 1
+        self.data.setdefault("transactions", []).insert(0, {"type": "Return", "user": user["name"], "item": item["name"]})
+        self.save_data(self.data)
+        self.loan_message = "Devolução registrada."
+        if overdue_days > 0:
+            self.loan_message += f" Atraso de {overdue_days} dia(s)."
+        return True
+
+    def _loan_do_reserve(self):
+        users, items = self._loan_lists()
+        if not (0 <= self.loan_selected_user < len(users)):
+            self.loan_message = "Selecione um usuário."
+            return False
+        if not (0 <= self.loan_selected_item < len(items)):
+            self.loan_message = "Selecione um item."
+            return False
+        user = users[self.loan_selected_user]
+        item = items[self.loan_selected_item]
+        self.data.setdefault("transactions", []).insert(0, {"type": "Reservation", "user": user["name"], "item": item["name"]})
+        self.save_data(self.data)
+        self.loan_message = "Reserva registrada."
+        return True
+
+    def render_loans(self):
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render("Empréstimos / Devoluções / Reservas", True, INK)
+        self.screen.blit(title, (40, 100))
+
+        users, items = self._loan_lists()
+
+        pygame.draw.rect(self.screen, (255, 255, 255), (40, 160, 460, 460), border_radius=14)
+        pygame.draw.rect(self.screen, BTN_BORDER, (40, 160, 460, 460), width=2, border_radius=14)
+        self.screen.blit(self.font_sub.render("Usuários", True, BTN_TEXT), (60, 180))
+
+        uy = 220
+        for i, u in enumerate(users[:14]):
+            prefix = "▶ " if i == self.loan_selected_user else "   "
+            can = self._loan_can_borrow(u)
+            line = f"{prefix}{u.get('name')} — {u.get('type')} (limite:{u.get('limit')})"
+            color = (40, 120, 60) if can else (160, 80, 60)
+            self.screen.blit(self.font.render(line, True, color), (60, uy))
+            uy += 28
+
+        pygame.draw.rect(self.screen, (255, 255, 255), (520, 160, 460, 460), border_radius=14)
+        pygame.draw.rect(self.screen, BTN_BORDER, (520, 160, 460, 460), width=2, border_radius=14)
+        self.screen.blit(self.font_sub.render("Itens", True, BTN_TEXT), (540, 180))
+
+        iy = 220
+        for i, it in enumerate(items[:14]):
+            prefix = "▶ " if i == self.loan_selected_item else "   "
+            st = it.get("status", "available")
+            line = f"{prefix}{it.get('name')} — {it.get('type')} [{st}]"
+            color = (50, 90, 160) if st == "available" else (160, 80, 80)
+            self.screen.blit(self.font.render(line, True, color), (540, iy))
+            iy += 28
+
+        btn_w = 180
+        btn_h = 44
+        loan_rect = pygame.Rect(40, 640, btn_w, btn_h)
+        return_rect = pygame.Rect(240, 640, btn_w, btn_h)
+        reserve_rect = pygame.Rect(440, 640, btn_w, btn_h)
+
+        pygame.draw.rect(self.screen, (70, 190, 120), loan_rect, border_radius=12)
+        pygame.draw.rect(self.screen, (200, 140, 70), return_rect, border_radius=12)
+        pygame.draw.rect(self.screen, (90, 110, 200), reserve_rect, border_radius=12)
+
+        self.screen.blit(self.font.render("Emprestar", True, (255, 255, 255)), (loan_rect.centerx - 48, loan_rect.centery - 12))
+        self.screen.blit(self.font.render("Devolver", True, (255, 255, 255)), (return_rect.centerx - 48, return_rect.centery - 12))
+        self.screen.blit(self.font.render("Reservar", True, (255, 255, 255)), (reserve_rect.centerx - 48, reserve_rect.centery - 12))
+
+        if self.loan_message:
+            color = (70, 140, 90) if any(w in self.loan_message.lower() for w in ["sucesso", "registrada", "registrado"]) else (200, 90, 90)
+            self.screen.blit(self.font.render(self.loan_message, True, color), (640, 650))
+
+        tip = self.font.render("Clique em um usuário e um item; depois escolha Emprestar/Devolver/Reservar.", True, MUTED)
+        self.screen.blit(tip, (40, 720))
+
+    def handle_loans_event(self, event):
+        users, items = self._loan_lists()
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            uy = 220
+            for i in range(min(len(users), 14)):
+                row_rect = pygame.Rect(50, uy - 2, 430, 26)
+                if row_rect.collidepoint(event.pos):
+                    self.loan_selected_user = i
+                    return
+                uy += 28
+            iy = 220
+            for i in range(min(len(items), 14)):
+                row_rect = pygame.Rect(530, iy - 2, 430, 26)
+                if row_rect.collidepoint(event.pos):
+                    self.loan_selected_item = i
+                    return
+                iy += 28
+            loan_rect = pygame.Rect(40, 640, 180, 44)
+            return_rect = pygame.Rect(240, 640, 180, 44)
+            reserve_rect = pygame.Rect(440, 640, 180, 44)
+            if loan_rect.collidepoint(event.pos):
+                self._loan_do_borrow()
+                return
+            if return_rect.collidepoint(event.pos):
+                self._loan_do_return()
+                return
+            if reserve_rect.collidepoint(event.pos):
+                self._loan_do_reserve()
+                return
+
+    # ---------- Relatórios ----------
+    def _rep_filtered_items(self):
+        items = self.data.get("items", [])
+        t = self.rep_filter_type
+        s = self.rep_filter_status
+        res = []
+        for it in items:
+            if t != "All" and it.get("type") != t:
+                continue
+            if s != "All" and it.get("status", "available") != s:
+                continue
+            res.append(it)
+        return res
+
+    def _rep_export_json(self, rows):
+        os.makedirs(os.path.join("data", "exports"), exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join("data", "exports", f"relatorio_{self.rep_filter_type}_{self.rep_filter_status}_{ts}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(rows, f, indent=4, ensure_ascii=False)
+        self.rep_message = f"JSON exportado: data/exports/{os.path.basename(path)}"
+
+    def _rep_export_csv(self, rows):
+        os.makedirs(os.path.join("data", "exports"), exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join("data", "exports", f"relatorio_{self.rep_filter_type}_{self.rep_filter_status}_{ts}.csv")
+        headers = ["type", "name", "status", "author", "isbn", "edition", "duration", "borrower"]
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=headers)
+            writer.writeheader();
+            for r in rows:
+                writer.writerow({k: r.get(k, "") for k in headers})
+        self.rep_message = f"CSV exportado: data/exports/{os.path.basename(path)}"
+
+    def _rep_group_by_user(self):
+        users = self.data.get("users", [])
+        items = self.data.get("items", [])
+        m = {u.get("name"): [] for u in users}
+        for it in items:
+            if it.get("status") == "borrowed" and it.get("borrower"):
+                m.setdefault(it.get("borrower"), []).append(it)
+        return m
+
+    def _rep_export_by_user_json(self, grouped):
+        os.makedirs(os.path.join("data", "exports"), exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join("data", "exports", f"relatorio_por_usuario_{ts}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({k: [i.get("name") for i in v] for k, v in grouped.items()}, f, indent=4, ensure_ascii=False)
+        self.rep_message = f"JSON (por usuário) exportado: data/exports/{os.path.basename(path)}"
+
+    def _rep_export_by_user_csv(self, grouped):
+        os.makedirs(os.path.join("data", "exports"), exist_ok=True)
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        path = os.path.join("data", "exports", f"relatorio_por_usuario_{ts}.csv")
+        with open(path, "w", encoding="utf-8", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(["user", "borrowed_items"])
+            for user, items in grouped.items():
+                writer.writerow([user, "; ".join(i.get("name", "") for i in items)])
+        self.rep_message = f"CSV (por usuário) exportado: data/exports/{os.path.basename(path)}"
+
+    def render_reports(self):
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render("Relatórios", True, INK)
+        self.screen.blit(title, (40, 100))
+
+        # Toggle modo
+        mode_items_rect = pygame.Rect(760, 100, 100, 32)
+        mode_users_rect = pygame.Rect(870, 100, 130, 32)
+        pygame.draw.rect(self.screen, (225, 235, 255) if self.rep_mode == "items" else (255, 255, 255), mode_items_rect, border_radius=8)
+        pygame.draw.rect(self.screen, (225, 245, 230) if self.rep_mode == "by_user" else (255, 255, 255), mode_users_rect, border_radius=8)
+        pygame.draw.rect(self.screen, BTN_BORDER, mode_items_rect, width=2, border_radius=8)
+        pygame.draw.rect(self.screen, BTN_BORDER, mode_users_rect, width=2, border_radius=8)
+        self.screen.blit(self.font.render("Itens", True, (40, 60, 120)), (mode_items_rect.x + 20, mode_items_rect.y + 6))
+        self.screen.blit(self.font.render("Por Usuário", True, (40, 100, 80)), (mode_users_rect.x + 12, mode_users_rect.y + 6))
+
+        if self.rep_mode == "items":
+            # Filtros
+            types = ["All", "Book", "Magazine", "DVD"]
+            x = 40
+            for t in types:
+                rect = pygame.Rect(x, 150, 140, 36)
+                is_sel = (self.rep_filter_type == t)
+                pygame.draw.rect(self.screen, (225, 235, 255) if is_sel else (255, 255, 255), rect, border_radius=10)
+                pygame.draw.rect(self.screen, (80, 120, 200) if is_sel else BTN_BORDER, rect, width=2, border_radius=10)
+                label = self.font.render(t, True, (40, 60, 120) if is_sel else BTN_TEXT)
+                self.screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+                x += 150
+
+            statuses = ["All", "available", "borrowed"]
+            x = 40
+            for s in statuses:
+                rect = pygame.Rect(x, 200, 140, 36)
+                is_sel = (self.rep_filter_status == s)
+                pygame.draw.rect(self.screen, (225, 245, 230) if is_sel else (255, 255, 255), rect, border_radius=10)
+                pygame.draw.rect(self.screen, (80, 160, 120) if is_sel else BTN_BORDER, rect, width=2, border_radius=10)
+                label = self.font.render(s, True, (40, 100, 80) if is_sel else BTN_TEXT)
+                self.screen.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
+                x += 150
+
+            rows = self._rep_filtered_items()
+            pygame.draw.rect(self.screen, (255, 255, 255), (40, 420, 940, 230), border_radius=14)
+            pygame.draw.rect(self.screen, BTN_BORDER, (40, 420, 940, 230), width=2, border_radius=14)
+            header = self.font_sub.render(f"Itens filtrados: {len(rows)}", True, BTN_TEXT)
+
+            # ==== GRÁFICOS (inseridos) ====
+            try:
+                from collections import Counter
+                from collections import Counter
+                # supondo que 'items' é a lista filtrada usada no relatório; detectar variável local 'items' ou 'filtered_items'
+                items_ref = locals().get('rows') or locals().get('items') or locals().get('filtered_items') or locals().get('items_filtrados') or []
+                # Contagens
+                types_ct = Counter([getattr(i,'type', i.get('type','Book')) for i in items_ref])
+                status_ct = Counter([getattr(i,'status', i.get('status','available')) for i in items_ref])
+                # Dados usuários (se houver self.transactions)
+                tx = getattr(self, 'transactions', []) or getattr(self, 'dm', None) and getattr(self.dm, 'transactions', []) or []
+                users_ct = Counter([t.get('user_id') or getattr(t,'user_id','') for t in tx if (t.get('type') if isinstance(t,dict) else getattr(t,'type','')) in ('loan','return')])
+                data_types  = [ {'label':'Book','value':types_ct.get('Book',0)},
+                                {'label':'Magazine','value':types_ct.get('Magazine',0)},
+                                {'label':'DVD','value':types_ct.get('DVD',0)} ]
+                data_status = [ {'label':'Disp.','value':status_ct.get('available',0)},
+                                {'label':'Emp.','value':status_ct.get('borrowed',0) or status_ct.get('loaned',0)},
+                                {'label':'Res.','value':status_ct.get('reserved',0)} ]
+                data_users  = [ {'label':u if u else '—', 'value':c} for u,c in users_ct.most_common(10) ]
+                # áreas
+                rect_types  = pygame.Rect(20, 170, 320, 200)
+                rect_status = pygame.Rect(360,170, 320, 200)
+                rect_users  = pygame.Rect(700,170, 360, 200)
+                draw_bar_chart(self.screen, data_types,  rect_types,  'Itens por Tipo')
+                draw_bar_chart(self.screen, data_status, rect_status, 'Status dos Itens')
+                draw_bar_chart(self.screen, data_users,  rect_users,  'Uso por Usuário')
+            except Exception as _e:
+                pass
+            # ==== /GRÁFICOS ====
+            self.screen.blit(header, (60, 430))
+            y = 470
+            for r in rows[:12]:
+                line = f"{r.get('type')} — {r.get('name')} — status: {r.get('status', 'available')}"
+                extra = r.get('author') or r.get('edition') or r.get('duration') or ''
+                if extra:
+                    line += f" — {extra}"
+                self.screen.blit(self.font.render(line, True, (70, 80, 100)), (60, y))
+                y += 26
+
+            export_json_rect = pygame.Rect(40, 660, 200, 44)
+            export_csv_rect = pygame.Rect(260, 660, 200, 44)
+            pygame.draw.rect(self.screen, (80, 120, 200), export_json_rect, border_radius=10)
+            pygame.draw.rect(self.screen, (80, 160, 120), export_csv_rect, border_radius=10)
+            self.screen.blit(self.font.render("Exportar JSON", True, (255, 255, 255)), (export_json_rect.centerx - 70, export_json_rect.centery - 12))
+            self.screen.blit(self.font.render("Exportar CSV", True, (255, 255, 255)), (export_csv_rect.centerx - 70, export_csv_rect.centery - 12))
+
+        else:
+            grouped = self._rep_group_by_user()
+            pygame.draw.rect(self.screen, (255, 255, 255), (40, 160, 940, 500), border_radius=14)
+            pygame.draw.rect(self.screen, BTN_BORDER, (40, 160, 940, 500), width=2, border_radius=14)
+            header = self.font_sub.render("Itens emprestados por Usuário", True, BTN_TEXT)
+            self.screen.blit(header, (60, 178))
+            y = 220
+            for user, items in list(grouped.items())[:12]:
+                line = f"{user}: " + (", ".join(i.get('name', '') for i in items) if items else "— nenhum")
+                self.screen.blit(self.font.render(line, True, (70, 80, 100)), (60, y))
+                y += 26
+
+            export_json_rect = pygame.Rect(40, 680, 240, 44)
+            export_csv_rect = pygame.Rect(300, 680, 240, 44)
+            pygame.draw.rect(self.screen, (80, 120, 200), export_json_rect, border_radius=10)
+            pygame.draw.rect(self.screen, (80, 160, 120), export_csv_rect, border_radius=10)
+            self.screen.blit(self.font.render("Exportar JSON (por usuário)", True, (255, 255, 255)), (export_json_rect.x + 10, export_json_rect.y + 12))
+            self.screen.blit(self.font.render("Exportar CSV (por usuário)", True, (255, 255, 255)), (export_csv_rect.x + 10, export_csv_rect.y + 12))
+
+        if self.rep_message:
+            self.screen.blit(self.font.render(self.rep_message, True, (70, 90, 120)), (480, 672))
+
+    def handle_reports_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            mode_items_rect = pygame.Rect(760, 100, 100, 32)
+            mode_users_rect = pygame.Rect(870, 100, 130, 32)
+            if mode_items_rect.collidepoint(event.pos):
+                self.rep_mode = "items"
+                return
+            if mode_users_rect.collidepoint(event.pos):
+                self.rep_mode = "by_user"
+                return
+
+            if self.rep_mode == "items":
+                x = 40
+                types = ["All", "Book", "Magazine", "DVD"]
+                for t in types:
+                    rect = pygame.Rect(x, 150, 140, 36)
+                    if rect.collidepoint(event.pos):
+                        self.rep_filter_type = t
+                        return
+                    x += 150
+                x = 40
+                statuses = ["All", "available", "borrowed"]
+                for s in statuses:
+                    rect = pygame.Rect(x, 200, 140, 36)
+                    if rect.collidepoint(event.pos):
+                        self.rep_filter_status = s
+                        return
+                    x += 150
+                export_json_rect = pygame.Rect(40, 660, 200, 44)
+                export_csv_rect = pygame.Rect(260, 660, 200, 44)
+                rows = self._rep_filtered_items()
+                if export_json_rect.collidepoint(event.pos):
+                    self._rep_export_json(rows)
+                    return
+                if export_csv_rect.collidepoint(event.pos):
+                    self._rep_export_csv(rows)
+                    return
+            else:
+                export_json_rect = pygame.Rect(40, 680, 240, 44)
+                export_csv_rect = pygame.Rect(300, 680, 240, 44)
+                grouped = self._rep_group_by_user()
+                if export_json_rect.collidepoint(event.pos):
+                    self._rep_export_by_user_json(grouped)
+                    return
+                if export_csv_rect.collidepoint(event.pos):
+                    self._rep_export_by_user_csv(grouped)
+                    return
+
+    # ---------- Prateleira (CRUD Itens) ----------
+    def _item_build_fields_from(self, item):
+        base_x, base_y = 520, 200
+        w, h = 420, 44
+        self.item_inputs = {
+            "name": InputField(base_x, base_y, w, h, placeholder="Nome do item", text=item.get("name", ""))
+        }
+        t = item.get("type", "Book")
+        if t == "Book":
+            self.item_inputs["author"] = InputField(base_x, base_y + 60, w, h, placeholder="Autor", text=item.get("author", ""))
+            self.item_inputs["isbn"] = InputField(base_x, base_y + 120, w, h, placeholder="ISBN", text=item.get("isbn", ""))
+        elif t == "Magazine":
+            self.item_inputs["edition"] = InputField(base_x, base_y + 60, w, h, placeholder="Edição", text=item.get("edition", ""))
+        elif t == "DVD":
+            self.item_inputs["duration"] = InputField(base_x, base_y + 60, w, h, placeholder="Duração", text=item.get("duration", ""))
+
+    def _item_validate_inputs(self, t):
+        name = self.item_inputs.get("name").text.strip()
+        if not name:
+            return False, "Informe o nome."
+        if t == "Book":
+            a = self.item_inputs.get("author").text.strip()
+            i = self.item_inputs.get("isbn").text.strip()
+            if not a or not i:
+                return False, "Livro exige Autor e ISBN."
+        if t == "Magazine":
+            e = self.item_inputs.get("edition").text.strip()
+            if not e:
+                return False, "Revista exige Edição."
+        if t == "DVD":
+            d = self.item_inputs.get("duration").text.strip()
+            if not d:
+                return False, "DVD exige Duração."
+        return True, ""
+
+    def _item_apply_edit(self):
+        items = self.data.get("items", [])
+        if not (0 <= self.item_selected_index < len(items)):
+            self.item_message = "Selecione um item."
+            return False
+        it = items[self.item_selected_index]
+        t = it.get("type", "Book")
+        ok, msg = self._item_validate_inputs(t)
+        if not ok:
+            self.item_message = msg
+            return False
+        it["name"] = self.item_inputs["name"].text.strip()
+        if t == "Book":
+            it["author"] = self.item_inputs["author"].text.strip()
+            it["isbn"] = self.item_inputs["isbn"].text.strip()
+        elif t == "Magazine":
+            it["edition"] = self.item_inputs["edition"].text.strip()
+        elif t == "DVD":
+            it["duration"] = self.item_inputs["duration"].text.strip()
+        self.save_data(self.data)
+        self.item_message = "Item atualizado."
+        self.item_edit_mode = False
+        return True
+
+    def _item_delete_selected(self):
+        items = self.data.get("items", [])
+        if 0 <= self.item_selected_index < len(items):
+            if items[self.item_selected_index].get("status") == "borrowed":
+                self.item_message = "Não é possível excluir um item emprestado."
+                return
+            items.pop(self.item_selected_index)
+            self.item_selected_index = -1
+            self.save_data(self.data)
+            self.item_message = "Item removido."
+
+    def render_shelf(self):
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render("Prateleira (Itens)", True, INK)
+        self.screen.blit(title, (40, 100))
+
+        items = self.data.get("items", [])
+        cols = 4
+        card_w, card_h = 220, 120
+        gap_x, gap_y = 20, 18
+        start_x, start_y = 40, 160 + self.scroll_offset
+
+        for idx, it in enumerate(items):
+            row = idx // cols
+            col = idx % cols
+            x = start_x + col * (card_w + gap_x)
+            y = start_y + row * (card_h + gap_y)
+            if y > 700 or y + card_h < 160:
+                continue
+            rect = pygame.Rect(x, y, card_w, card_h)
+            is_sel = (idx == self.item_selected_index)
+            bg = (250, 252, 255) if is_sel else (255, 255, 255)
+            pygame.draw.rect(self.screen, bg, rect, border_radius=14)
+            border_col = (90, 200, 120) if it.get("status", "available") == "available" else (220, 100, 100)
+            pygame.draw.rect(self.screen, border_col, rect, width=3, border_radius=14)
+            name = it.get("name", "(sem nome)")
+            typ = it.get("type", "Item")
+            extra = it.get("author") or it.get("edition") or it.get("duration") or ""
+            t1 = self.font_sub.render(f"{typ}", True, BTN_TEXT)
+            self.screen.blit(t1, (x + 12, y + 10))
+            t2 = self.font.render(name, True, (70, 80, 100))
+            self.screen.blit(t2, (x + 12, y + 46))
+            if extra:
+                t3 = self.font.render(str(extra), True, (110, 120, 140))
+                self.screen.blit(t3, (x + 12, y + 74))
+
+        panel = pygame.Rect(520, 160, 460, 380)
+        pygame.draw.rect(self.screen, (255, 255, 255), panel, border_radius=14)
+        pygame.draw.rect(self.screen, BTN_BORDER, panel, width=2, border_radius=14)
+        self.screen.blit(self.font_sub.render("Edição do Item", True, BTN_TEXT), (540, 178))
+
+        if 0 <= self.item_selected_index < len(items):
+            it = items[self.item_selected_index]
+            if not self.item_edit_mode:
+                self._item_build_fields_from(it)
+                self.item_edit_mode = True
+            for fld in self.item_inputs.values():
+                fld.draw(self.screen, self.font)
+            save_rect = pygame.Rect(540, 360, 180, 44)
+            del_rect = pygame.Rect(740, 360, 180, 44)
+            pygame.draw.rect(self.screen, (70, 190, 120), save_rect, border_radius=10)
+            pygame.draw.rect(self.screen, (190, 80, 80), del_rect, border_radius=10)
+            self.screen.blit(self.font.render("Salvar Alterações", True, (255, 255, 255)), (save_rect.centerx - 84, save_rect.centery - 12))
+            self.screen.blit(self.font.render("Excluir", True, (255, 255, 255)), (del_rect.centerx - 34, del_rect.centery - 12))
+        else:
+            self.item_edit_mode = False
+            self.item_inputs = {}
+            msg = "Selecione um item na prateleira (à esquerda) para editar."
+            self.screen.blit(self.font.render(msg, True, (100, 110, 130)), (540, 220))
+
+        if self.item_message:
+            color = (70, 140, 90) if any(w in self.item_message.lower() for w in ["atualiz", "remov"]) else (200, 90, 90)
+            self.screen.blit(self.font.render(self.item_message, True, color), (540, 420))
+
+        tip = self.font.render("Clique em um cartão para selecionar. Use a rodinha para rolar.", True, MUTED)
+        self.screen.blit(tip, (40, 740))
+
+    # ---------- Dashboard (render) ----------
+    def render_dashboard(self):
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render("BiblioManager — Dashboard", True, INK)
+        self.screen.blit(title, (40, 100))
+        item_counts = self._count_items()
+        user_counts = self._count_users()
+        pygame.draw.rect(self.screen, (255, 255, 255), (40, 160, 460, 220), border_radius=18)
+        pygame.draw.rect(self.screen, BTN_BORDER, (40, 160, 460, 220), width=2, border_radius=18)
+        t1 = self.font_sub.render("Itens cadastrados", True, BTN_TEXT)
+        self.screen.blit(t1, (60, 182))
+        lines1 = [
+            f"Total: {item_counts['total']}",
+            f"Livros: {item_counts['books']}",
+            f"Revistas: {item_counts['magazines']}",
+            f"DVDs: {item_counts['dvds']}",
+            f"Disponíveis: {item_counts['available']}",
+            f"Emprestados: {item_counts['borrowed']}",
+        ]
+        y = 218
+        for line in lines1:
+            self.screen.blit(self.font.render(line, True, (70, 80, 100)), (60, y))
+            y += 26
+        pygame.draw.rect(self.screen, (255, 255, 255), (520, 160, 460, 220), border_radius=18)
+        pygame.draw.rect(self.screen, BTN_BORDER, (520, 160, 460, 220), width=2, border_radius=18)
+        t2 = self.font_sub.render("Usuários", True, BTN_TEXT)
+        self.screen.blit(t2, (540, 182))
+        lines2 = [
+            f"Total: {user_counts['total']}",
+            f"Estudantes: {user_counts['students']}",
+            f"Professores: {user_counts['professors']}",
+            f"Visitantes: {user_counts['visitors']}",
+        ]
+        y = 218
+        for line in lines2:
+            self.screen.blit(self.font.render(line, True, (70, 80, 100)), (540, y))
+            y += 26
+        pygame.draw.rect(self.screen, (255, 255, 255), (40, 400, 940, 320), border_radius=18)
+        pygame.draw.rect(self.screen, BTN_BORDER, (40, 400, 940, 320), width=2, border_radius=18)
+        t3 = self.font_sub.render("Transações recentes", True, BTN_TEXT)
+        self.screen.blit(t3, (60, 422))
+        txs = self.data.get("transactions", [])
+        if not txs:
+            self.screen.blit(self.font.render("Nenhuma transação registrada ainda.", True, (100, 110, 130)), (60, 460))
+        else:
+            y = 460
+            for tx in txs[:10]:
+                line = f"{tx.get('type', 'TX')} — usuário: {tx.get('user', 'N/A')} — item: {tx.get('item', 'N/A')}"
+                self.screen.blit(self.font.render(line, True, (70, 80, 100)), (60, y))
+                y += 24
+        footer = self.font.render("Use ESC para sair — os dados serão salvos automaticamente.", True, MUTED)
+        self.screen.blit(footer, (40, 740))
+
+    # ---------- Navbar render ----------
+    def render_navbar(self):
+        pygame.draw.rect(self.screen, (250, 250, 252), (0, 0, 1024, 80))
+        pygame.draw.line(self.screen, BTN_BORDER, (0, 80), (1024, 80), width=2)
+        for b in self.buttons:
+            b.draw(self.screen, self.font)
+
+    # ---------- Placeholder ----------
+    def render_placeholder(self, title_text):
+        self.screen.fill(BG)
+        self.render_navbar()
+        title = self.font_title.render(title_text, True, INK)
+        self.screen.blit(title, (40, 100))
+        msg = "Tela em construção."
+        self.screen.blit(self.font.render(msg, True, (90, 100, 120)), (40, 150))
+
+    # ---------- Loop principal ----------
+    def run(self):
+        while self.running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.running = False
+                elif event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.running = False
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 4:
+                    self.scroll_offset = min(self.scroll_offset + 40, 0)
+                elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 5:
+                    self.scroll_offset -= 40
+
+                # Botões de navegação
+                for b in self.buttons:
+                    b.handle_event(event)
+                if event.type == pygame.MOUSEMOTION:
+                    for b in self.buttons:
+                        b.handle_event(event)
+
+                # Eventos específicos por tela
+                if self.current_screen == "add_item":
+                    self.handle_add_item_event(event)
+                elif self.current_screen == "manage_users":
+                    self.handle_manage_users_event(event)
+                elif self.current_screen == "loans":
+                    self.handle_loans_event(event)
+                elif self.current_screen == "reports":
+                    self.handle_reports_event(event)
+                elif self.current_screen == "shelf":
+                    # Seleção na prateleira e ações do painel
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        items = self.data.get("items", [])
+                        cols = 4
+                        card_w, card_h = 220, 120
+                        gap_x, gap_y = 20, 18
+                        start_x, start_y = 40, 160 + self.scroll_offset
+                        clicked_any = False
+                        for idx, it in enumerate(items):
+                            row = idx // cols
+                            col = idx % cols
+                            x = start_x + col * (card_w + gap_x)
+                            y = start_y + row * (card_h + gap_y)
+                            rect = pygame.Rect(x, y, card_w, card_h)
+                            if rect.collidepoint(event.pos):
+                                self.item_selected_index = idx
+                                clicked_any = True
+                                break
+                        if not clicked_any and 0 <= self.item_selected_index < len(items):
+                            save_rect = pygame.Rect(540, 360, 180, 44)
+                            del_rect = pygame.Rect(740, 360, 180, 44)
+                            if save_rect.collidepoint(event.pos):
+                                self._item_apply_edit()
+                            elif del_rect.collidepoint(event.pos):
+                                self._item_delete_selected()
+                    if 0 <= self.item_selected_index < len(self.data.get("items", [])):
+                        for fld in self.item_inputs.values():
+                            fld.handle_event(event)
+
+            # Render por tela
+            if self.current_screen == "dashboard":
+                self.render_dashboard()
+            elif self.current_screen == "shelf":
+                self.render_shelf()
+            elif self.current_screen == "add_item":
+                self.render_add_item()
+            elif self.current_screen == "manage_users":
+                self.render_manage_users()
+            elif self.current_screen == "loans":
+                self.render_loans()
+            elif self.current_screen == "reports":
+                self.render_reports()
+            else:
+                self.render_placeholder("Tela desconhecida")
+
+            pygame.display.flip()
+            self.clock.tick(60)
+
+        # Salvar dados ao sair
+        self.save_data(self.data)
+        pygame.quit()
+
+
+def _draw_exit_btn(screen):
+    try:
+        return draw_exit_button(screen, screen.get_width()-110, 18, 'Sair')
+    except Exception:
+        return None
+
+
+def draw_navbar(self):
+        # Rótulos lógicos (não mudar — usados no roteamento de tela)
+        labels = ["Dashboard","Prateleira","Adicionar Item","Gerenciar Usuários","Empréstimos","Relatórios"]
+        # Rótulos de exibição mais curtos
+        display = ["Dashboard","Prateleira","Adicionar","Usuários","Emprést.","Relatórios"]
+
+        W = self.screen.get_width()
+        left, right = 10, 10
+        gap = 6
+        n = len(labels)
+
+        # Tente tamanhos de fonte menores até caber
+        for fs in (14, 13, 12):
+            nav_font = pygame.font.SysFont("Arial", fs)
+            padd = 18  # padding horizontal total
+            widths = [nav_font.size(txt)[0] + padd for txt in display]
+            line_w = sum(widths) + gap*(n-1)
+            if line_w <= (W - left - right):
+                break
+        else:
+            # se mesmo em 12 não couber, força compressão equalizada
+            nav_font = pygame.font.SysFont("Arial", 12)
+            target = (W - left - right - gap*(n-1)) // n
+            widths = [max(88, target) for _ in display]
+
+        H = 24  # altura reduzida
+        x = left; y = 8
+        self.nav_rects = []
+
+        # Desenha pílulas manualmente com a fonte menor
+        for i, (lb, show) in enumerate(zip(labels, display)):
+            w = widths[i]
+            r = pygame.Rect(x, y, w, H)
+            # estilo
+            pygame.draw.rect(self.screen, (240,244,250), r, border_radius=12)
+            pygame.draw.rect(self.screen, (185,200,220), r, 1, border_radius=12)
+            txt = nav_font.render(show, True, (50,70,90))
+            self.screen.blit(txt, (r.centerx - txt.get_width()//2, r.centery - txt.get_height()//2))
+            self.nav_rects.append((lb, r))
+            x += w + gap
+
+        self.exit_rect = None
+
+
+def draw_navbar(self):
+        # Rótulos lógicos (internos) e rótulos curtos de exibição
+        labels  = ["Dashboard","Prateleira","Adicionar Item","Gerenciar Usuários","Empréstimos","Relatórios"]
+        display = ["Dashboard","Prateleira","Adicionar","Usuários","Emprést.","Relatórios"]
+
+        W = self.screen.get_width()
+        margin_l, margin_r = 8, 8
+        gap = 5
+        n = len(labels)
+
+        # Tente fontes menores até caber naturalmente
+        fit = False
+        for fs in (14, 13, 12):
+            nav_font = pygame.font.SysFont("Arial", fs)
+            padd = 14  # padding horizontal total (reduzido)
+            txt_w = [nav_font.size(t)[0] + padd for t in display]
+            total = sum(txt_w) + gap*(n-1)
+            if total <= (W - margin_l - margin_r):
+                widths = txt_w
+                fit = True
+                break
+
+        if not fit:
+            # Escala proporcional para caber no espaço disponível
+            nav_font = pygame.font.SysFont("Arial", 12)
+            padd = 12
+            txt_w = [nav_font.size(t)[0] + padd for t in display]
+            avail = max(200, W - margin_l - margin_r - gap*(n-1))
+            total_txt = sum(txt_w)
+            scale = min(1.0, avail / max(1, total_txt))
+            widths = [max(80, int(w * scale)) for w in txt_w]  # largura mínima por botão
+
+            # Se mesmo assim não couber (por arredondamento), ajuste o último botão
+            while sum(widths) + gap*(n-1) > (W - margin_l - margin_r):
+                widths[-1] -= 1
+                if widths[-1] < 80: break
+
+        H = 24  # altura compacta
+
+        # Centralizar horizontalmente o conjunto
+        total_w = sum(widths) + gap*(n-1)
+        start_x = margin_l + max(0, (W - margin_l - margin_r - total_w)//2)
+        x = start_x
+        y = 8
+
+        self.nav_rects = []
+        for i, (lb, show) in enumerate(zip(labels, display)):
+            w = widths[i]
+            r = pygame.Rect(x, y, w, H)
+            # estilo "pill"
+            pygame.draw.rect(self.screen, (240,244,250), r, border_radius=12)
+            pygame.draw.rect(self.screen, (185,200,220), r, 1, border_radius=12)
+            txt = nav_font.render(show, True, (50,70,90))
+            self.screen.blit(txt, (r.centerx - txt.get_width()//2, r.centery - txt.get_height()//2))
+            self.nav_rects.append((lb, r))
+            x += w + gap
+
+        self.exit_rect = None

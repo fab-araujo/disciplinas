@@ -1,0 +1,129 @@
+{
+    "proximo_id": 28,
+    "itens": [
+        {
+            "tipo": "Livro",
+            "id": 11,
+            "titulo": "livro",
+            "autor": "caua",
+            "isbn": "1234",
+            "ano": 2025,
+            "status": "disponivel"
+        }
+    ],
+    "usuarios": [
+        {
+            "tipo": "Estudante",
+            "id": 1,
+            "nome": "João Silva",
+            "email": "joao@email.com",
+            "itens_emprestados": [],
+            "id_estudante": "EST123"
+        },
+        {
+            "tipo": "Professor",
+            "id": 2,
+            "nome": "Maria Santos",
+            "email": "maria@email.com",
+            "itens_emprestados": [],
+            "departamento": "Departamento 2"
+        },
+        {
+            "tipo": "Visitante",
+            "id": 3,
+            "nome": "Carlos Oliveira",
+            "email": "carlos@email.com",
+            "itens_emprestados": [],
+            "telefone": "(11) 90002-0002"
+        },
+        {
+            "tipo": "Estudante",
+            "id": 4,
+            "nome": "Ana Costa",
+            "email": "ana@email.com",
+            "itens_emprestados": [],
+            "id_estudante": "EST101"
+        },
+        {
+            "tipo": "Professor",
+            "id": 5,
+            "nome": "Pedro Alves",
+            "email": "pedro@email.com",
+            "itens_emprestados": [],
+            "departamento": "Departamento 5"
+        },
+        {
+            "tipo": "Visitante",
+            "id": 6,
+            "nome": "Laura Mendes",
+            "email": "laura@email.com",
+            "itens_emprestados": [],
+            "telefone": "(11) 90005-0005"
+        },
+        {
+            "tipo": "Estudante",
+            "id": 7,
+            "nome": "Paulo Rodrigues",
+            "email": "paulo@email.com",
+            "itens_emprestados": [],
+            "id_estudante": "EST404"
+        },
+        {
+            "tipo": "Professor",
+            "id": 8,
+            "nome": "Fernanda Lima",
+            "email": "fernanda@email.com",
+            "itens_emprestados": [],
+            "departamento": "Departamento 8"
+        },
+        {
+            "tipo": "Visitante",
+            "id": 9,
+            "nome": "Ricardo Souza",
+            "email": "ricardo@email.com",
+            "itens_emprestados": [],
+            "telefone": "(11) 90008-0008"
+        },
+        {
+            "tipo": "Estudante",
+            "id": 10,
+            "nome": "Juliana Pereira",
+            "email": "juliana@email.com",
+            "itens_emprestados": [],
+            "id_estudante": "EST707"
+        },
+        {
+            "tipo": "Visitante",
+            "id": 12,
+            "nome": "caua",
+            "email": "caua123@gmail.com",
+            "itens_emprestados": [],
+            "telefone": "11111111111"
+        },
+        {
+            "tipo": "Estudante",
+            "id": 26,
+            "nome": "alex",
+            "email": "alex123@gmail.com",
+            "itens_emprestados": [],
+            "id_estudante": "123"
+        }
+    ],
+    "transacoes": [
+        {
+            "tipo": "Emprestimo",
+            "id": 25,
+            "id_usuario": 12,
+            "id_item": 11,
+            "data": "2025-09-10T20:16:52.225067",
+            "data_vencimento": "2025-09-24T20:16:52.225070"
+        },
+        {
+            "tipo": "Devolucao",
+            "id": 27,
+            "id_usuario": 12,
+            "id_item": 11,
+            "data": "2025-09-10T20:18:08.603800"
+        }
+    ]
+}

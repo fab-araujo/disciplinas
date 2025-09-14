@@ -1,0 +1,38 @@
+{
+  "items": {
+    "62c51dce-a3c4-47b9-8f4f-030ad2534bf4": {
+      "id": "62c51dce-a3c4-47b9-8f4f-030ad2534bf4",
+      "name": "hobbit",
+      "status": "available",
+      "type": "Book",
+      "author": "jrr tolkien",
+      "isbn": "20b000",
+      "year": ""
+    }
+  },
+  "users": {
+    "200051b9-fb45-429d-8aff-b25c9c25a00b": {
+      "id": "200051b9-fb45-429d-8aff-b25c9c25a00b",
+      "name": "lucas",
+      "email": "lucas@gmail.com",
+      "user_type": "student",
+      "borrowed": []
+    }
+  },
+  "transactions": [
+    {
+      "id": "aa85a546-dc83-4b14-b88d-ad6d17a6c059",
+      "type": "loan",
+      "user_id": "200051b9-fb45-429d-8aff-b25c9c25a00b",
+      "item_id": "62c51dce-a3c4-47b9-8f4f-030ad2534bf4",
+      "when": "2025-09-10T20:35:43.162305"
+    },
+    {
+      "id": "4743b07b-40ee-4421-9478-43260e34ab32",
+      "type": "return",
+      "user_id": "200051b9-fb45-429d-8aff-b25c9c25a00b",
+      "item_id": "62c51dce-a3c4-47b9-8f4f-030ad2534bf4",
+      "when": "2025-09-10T20:35:54.641208"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+[
+    {
+        "id": 1,
+        "name": "kkkkk",
+        "status": "Dispon\u00edvel",
+        "author": "ert",
+        "publisher": "wet",
+        "year": "3456236",
+        "isbn": "3452",
+        "type": "Book"
+    },
+    {
+        "id": 2,
+        "name": "Dom quixote",
+        "status": "Dispon\u00edvel",
+        "author": "Poliana\t",
+        "publisher": "Intrisesca",
+        "year": "2007",
+        "isbn": "12345",
+        "type": "Book"
+    }
+]

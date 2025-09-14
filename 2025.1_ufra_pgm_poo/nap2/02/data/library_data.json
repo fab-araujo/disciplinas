@@ -1,0 +1,75 @@
+{
+    "items": [
+        {
+            "type": "Book",
+            "name": "Python POO",
+            "author": "Fabrício Araújo",
+            "isbn": "123456",
+            "status": "borrowed",
+            "borrower": "Alex da Silva OliveiraspbcdVBvs",
+            "loan_ts": 1757544584,
+            "due_ts": 1758149384
+        },
+        {
+            "type": "Magazine",
+            "name": "Ciência Hoje",
+            "edition": "Agosto 2025"
+        },
+        {
+            "type": "DVD",
+            "name": "Algoritmos em Ação",
+            "duration": "120min"
+        },
+        {
+            "type": "Book",
+            "name": "asdasd",
+            "status": "available",
+            "author": "asd",
+            "isbn": "asdasd"
+        },
+        {
+            "type": "Magazine",
+            "name": "asda",
+            "status": "borrowed",
+            "edition": "123123",
+            "borrower": "Leonnardo Lair Tavares Gomes",
+            "loan_ts": 1757531109,
+            "due_ts": 1758135909
+        },
+        {
+            "type": "Magazine",
+            "name": "sapos",
+            "status": "available",
+            "edition": "10/2025"
+        }
+    ],
+    "users": [
+        {
+            "type": "Visitor",
+            "name": "Leonnardo Lair Tavares Gomes",
+            "limit": 1
+        },
+        {
+            "type": "Student",
+            "name": "Alex da Silva Oliveiraybubadsu",
+            "limit": 3
+        },
+        {
+            "type": "Student",
+            "name": "Alex da Silva OliveiraspbcdVBvs",
+            "limit": 2
+        }
+    ],
+    "transactions": [
+        {
+            "type": "Loan",
+            "user": "Alex da Silva OliveiraspbcdVBvs",
+            "item": "Python POO"
+        },
+        {
+            "type": "Loan",
+            "user": "Leonnardo Lair Tavares Gomes",
+            "item": "asda"
+        }
+    ]
+}

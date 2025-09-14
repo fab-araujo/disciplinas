@@ -1,0 +1,44 @@
+[
+    {
+        "id": 1,
+        "matricula": "12123",
+        "name": "poli",
+        "type": "Student"
+    },
+    {
+        "id": 2,
+        "matricula": "poli",
+        "name": "1234",
+        "type": "Student"
+    },
+    {
+        "id": 3,
+        "matricula": "125",
+        "name": "ryytgh",
+        "type": "Student"
+    },
+    {
+        "id": 4,
+        "matricula": "1234",
+        "name": "Polio",
+        "type": "Student"
+    },
+    {
+        "id": 5,
+        "matricula": "12334",
+        "name": "gfgdsrg",
+        "type": "Student"
+    },
+    {
+        "id": 6,
+        "matricula": "841522",
+        "name": "hbfdgdfrg",
+        "type": "Student"
+    },
+    {
+        "id": 7,
+        "matricula": "1234",
+        "name": "Poliana Teodoro",
+        "type": "Student"
+    }
+]

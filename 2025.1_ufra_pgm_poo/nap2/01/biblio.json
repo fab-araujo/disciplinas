@@ -1,0 +1,25 @@
+{
+  "itens": [
+    {
+      "tipo": "Livro",
+      "id": "1d15d80c-bdeb-410a-8d7b-ab7a0d3f6932",
+      "status": "disponivel",
+      "criado_em": "2025-09-06T14:32:21.008163",
+      "titulo": "Livro X",
+      "autor": "Autora Y",
+      "isbn": "111"
+    }
+  ],
+  "usuarios": [
+    {
+      "tipo": "Aluno",
+      "id": "8b84ce24-b4b1-4787-accd-a5907dcbb37b",
+      "status": "ok",
+      "criado_em": "2025-09-06T14:32:21.008181",
+      "nome": "Joao",
+      "emprestados": 0,
+      "limite": 3
+    }
+  ],
+  "transacoes": []
+}
